@@ -4,9 +4,11 @@ import {
   updateProfile,
 } from "firebase/auth";
 import React, { useRef, useState } from "react";
+import { getDatabase, ref, set } from "firebase/database";
 import { useForm } from "react-hook-form";
 import { Link } from "react-router-dom";
-import firebase from "../../firebase";
+import md5 from "md5";
+
 const RegisterPage = () => {
   const {
     register,
@@ -15,6 +17,7 @@ const RegisterPage = () => {
     handleSubmit,
   } = useForm();
   const [errorFromSubmit, setErrorFromSubmit] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const password = useRef();
   //watch를 이용하여 password값 가져옴
@@ -22,16 +25,36 @@ const RegisterPage = () => {
 
   const onSubmit = async (data) => {
     try {
+      setLoading(true);
       const auth = getAuth();
       let createdUser = await createUserWithEmailAndPassword(
         auth,
         data.email,
         data.password
       );
+
       console.log("createdUser", createdUser);
+
+      await updateProfile(auth.currentUser, {
+        //data로 받은 input의 name값
+        displayName: data.name,
+        photoURL: `http://gravatar.com/avatar/${md5(
+          createdUser.user.email
+        )}?d=identicon`,
+      });
+      //Firebase 데이터베이스에 저장해주기
+      /**
+       * 데이터 베이스에 접근하고 싶은 위치 user 에 접근
+       */
+      set(ref(getDatabase(), `users/${createdUser.user.uid}`), {
+        name: createdUser.user.displayName,
+        image: createdUser.user.photoURL,
+      });
+      setLoading(false);
     } catch (error) {
       setErrorFromSubmit(error.message);
       setTimeout(() => {
+        setLoading(false);
         setErrorFromSubmit("");
       }, 5000);
     }
@@ -98,7 +121,7 @@ const RegisterPage = () => {
           )}
 
         {errorFromSubmit && <p>{errorFromSubmit}</p>}
-        <input type="submit" />
+        <input type="submit" disabled={loading} />
         <Link to="/login" style={{ color: "gray", textDecoration: "none" }}>
           이미 아이디가 있다면...
         </Link>
